@@ -1,5 +1,6 @@
 package com.todo.todo_backend.entity;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import jakarta.persistence.*;
 import java.time.LocalDate;
 
@@ -16,6 +17,7 @@ public class Todo {
 
     private boolean completed;
 
+    @JsonFormat(pattern = "yyyy-MM-dd")
     @Column(nullable = false)
     private LocalDate date;
 

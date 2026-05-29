@@ -8,7 +8,7 @@ import org.springframework.web.bind.annotation.*;
 import java.time.LocalDate;
 import java.util.List;
 
-@CrossOrigin(origins = "http://127.0.0.1:5500")
+@CrossOrigin(origins = "*")
 @RestController
 @RequestMapping("/api/todos")
 public class TodoController {
@@ -22,6 +22,10 @@ public class TodoController {
             return todoRepository.findByDate(date);
         }
         return todoRepository.findAll();
+    }
+    @GetMapping("/test")
+    public String test() {
+        return "Controller is working!";
     }
 
     @PostMapping

@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>每日待办 · 成就每一天</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background-attachment: fixed;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        /* 装饰性背景圆 */
+        body::before {
+            content: '';
+            position: fixed;
+            top: -50%;
+            right: -30%;
+            width: 600px;
+            height: 600px;
+            background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+            border-radius: 50%;
+            pointer-events: none;
+        }
+        body::after {
+            content: '';
+            position: fixed;
+            bottom: -40%;
+            left: -20%;
+            width: 500px;
+            height: 500px;
+            background: radial-gradient(circle, rgba(255,255,255,0.08) 0%, transparent 70%);
+            border-radius: 50%;
+            pointer-events: none;
+        }
+
+        .todo-app {
+            position: relative;
+            z-index: 1;
+            width: 100%;
+            max-width: 520px;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            border-radius: 24px;
+            box-shadow:
+                0 20px 60px rgba(0, 0, 0, 0.15),
+                0 4px 16px rgba(0, 0, 0, 0.08);
+            padding: 36px 32px;
+            animation: slideUp 0.5s ease-out;
+        }
+
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(30px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: scale(0.9); }
+            to   { opacity: 1; transform: scale(1); }
+        }
+        @keyframes bounceIn {
+            0%   { opacity: 0; transform: scale(0.3); }
+            50%  { transform: scale(1.05); }
+            70%  { transform: scale(0.95); }
+            100% { opacity: 1; transform: scale(1); }
+        }
+        @keyframes checkPulse {
+            0%, 100% { transform: scale(1); }
+            50%       { transform: scale(1.2); }
+        }
+
+        /* ===== 头部 ===== */
+        .header {
+            text-align: center;
+            margin-bottom: 28px;
+        }
+        .header .icon {
+            font-size: 48px;
+            animation: bounceIn 0.6s ease-out;
+            display: block;
+        }
+        .header h1 {
+            font-size: 26px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #667eea, #f093fb);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-top: 4px;
+        }
+        .header .date-display {
+            font-size: 14px;
+            color: #888;
+            margin-top: 6px;
+        }
+
+        /* ===== 日期选择器 ===== */
+        .date-picker-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 24px;
+        }
+        .date-nav {
+            width: 36px; height: 36px;
+            border: none;
+            border-radius: 50%;
+            background: #f0f0f0;
+            color: #555;
+            font-size: 18px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+            flex-shrink: 0;
+        }
+        .date-nav:hover {
+            background: #667eea;
+            color: #fff;
+        }
+        .date-input-wrapper {
+            flex: 1;
+            position: relative;
+        }
+        .date-input-wrapper input[type="date"] {
+            width: 100%;
+            padding: 10px 14px;
+            border: 2px solid #e8e8e8;
+            border-radius: 12px;
+            font-size: 15px;
+            color: #333;
+            background: #fafafa;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: center;
+            font-family: inherit;
+        }
+        .date-input-wrapper input[type="date"]:focus {
+            outline: none;
+            border-color: #667eea;
+            background: #fff;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        .date-input-wrapper input[type="date"]::-webkit-calendar-picker-indicator {
+            cursor: pointer;
+            opacity: 0.6;
+        }
+        .today-badge {
+            display: inline-block;
+            font-size: 11px;
+            padding: 2px 8px;
+            border-radius: 10px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: #fff;
+            margin-left: 6px;
+            vertical-align: middle;
+        }
+
+        /* ===== 输入区 ===== */
+        .add-todo {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 24px;
+        }
+        .add-todo input {
+            flex: 1;
+            padding: 12px 16px;
+            border: 2px solid #e8e8e8;
+            border-radius: 14px;
+            font-size: 15px;
+            color: #333;
+            background: #fafafa;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+        .add-todo input:focus {
+            outline: none;
+            border-color: #667eea;
+            background: #fff;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        .add-todo input::placeholder { color: #bbb; }
+        .add-btn {
+            padding: 12px 22px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #fff;
+            border: none;
+            border-radius: 14px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.25s;
+            white-space: nowrap;
+            font-family: inherit;
+        }
+        .add-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+        }
+        .add-btn:active { transform: scale(0.97); }
+
+        /* ===== 进度条 ===== */
+        .progress-section {
+            margin-bottom: 20px;
+        }
+        .progress-bar-wrap {
+            height: 8px;
+            background: #eee;
+            border-radius: 10px;
+            overflow: hidden;
+            margin-bottom: 8px;
+        }
+        .progress-bar-fill {
+            height: 100%;
+            border-radius: 10px;
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+            transition: width 0.5s ease;
+        }
+        .progress-text {
+            display: flex;
+            justify-content: space-between;
+            font-size: 13px;
+            color: #888;
+        }
+        .progress-text .highlight {
+            color: #667eea;
+            font-weight: 600;
+        }
+
+        /* ===== 列表 ===== */
+        .todo-list {
+            list-style: none;
+            margin-bottom: 12px;
+        }
+        .todo-list li {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 14px 16px;
+            margin-bottom: 8px;
+            background: #fafafa;
+            border-radius: 14px;
+            border: 1px solid #f0f0f0;
+            transition: all 0.3s;
+            animation: slideUp 0.4s ease-out;
+        }
+        .todo-list li:hover {
+            background: #f5f3ff;
+            border-color: #e0d6ff;
+        }
+        .todo-list li.completed-item {
+            background: #f6fff6;
+            border-color: #d4edda;
+        }
+
+        /* 自定义 checkbox */
+        .custom-checkbox {
+            width: 22px; height: 22px;
+            appearance: none;
+            -webkit-appearance: none;
+            border: 2px solid #d0d0d0;
+            border-radius: 50%;
+            cursor: pointer;
+            flex-shrink: 0;
+            transition: all 0.2s;
+            position: relative;
+            background: #fff;
+        }
+        .custom-checkbox:checked {
+            background: #38ef7d;
+            border-color: #38ef7d;
+            animation: checkPulse 0.3s ease;
+        }
+        .custom-checkbox:checked::after {
+            content: '✓';
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            color: #fff;
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .todo-text {
+            flex: 1;
+            font-size: 15px;
+            color: #333;
+            cursor: pointer;
+            transition: all 0.2s;
+            word-break: break-word;
+        }
+        .todo-text.completed {
+            text-decoration: line-through;
+            color: #bbb;
+        }
+
+        .delete-btn {
+            width: 30px; height: 30px;
+            border: none;
+            background: transparent;
+            color: #ccc;
+            font-size: 18px;
+            cursor: pointer;
+            border-radius: 50%;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+        .delete-btn:hover {
+            background: #ffe0e0;
+            color: #e74c3c;
+        }
+
+        /* ===== 空状态 ===== */
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: #ccc;
+        }
+        .empty-state .empty-icon {
+            font-size: 56px;
+            display: block;
+            margin-bottom: 12px;
+        }
+        .empty-state p {
+            font-size: 15px;
+            color: #aaa;
+            margin-top: 4px;
+            white-space: pre-line;
+        }
+
+        /* ===== 错误提示 ===== */
+        .error-toast {
+            background: #fff0f0;
+            color: #e74c3c;
+            padding: 10px 16px;
+            border-radius: 10px;
+            font-size: 14px;
+            margin-bottom: 16px;
+            text-align: center;
+            animation: slideUp 0.3s ease-out;
+            border: 1px solid #ffd5d5;
+        }
+        .add-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none !important;
+            box-shadow: none !important;
+        }
+        .custom-checkbox:disabled {
+            cursor: wait;
+        }
+
+        /* ===== 底部口号 ===== */
+        .footer-motto {
+            text-align: center;
+            margin-top: 20px;
+            padding-top: 16px;
+            border-top: 1px solid #f0f0f0;
+        }
+        .motto-text {
+            font-size: 13px;
+            color: #aaa;
+            transition: all 0.4s;
+        }
+        .motto-text.excellent {
+            color: #38ef7d;
+            font-weight: 600;
+            font-size: 14px;
+        }
+        .motto-text.good {
+            color: #667eea;
+            font-weight: 600;
+        }
+        .motto-text.encourage {
+            color: #f093fb;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div class="todo-app">
+            <!-- 错误提示 -->
+            <div class="error-toast" v-if="errorMsg">{{ errorMsg }}</div>
+
+            <!-- 头部 -->
+            <div class="header">
+                <span class="icon">☀️</span>
+                <h1>今日待办</h1>
+                <div class="date-display">{{ formattedDate }}</div>
+            </div>
+
+            <!-- 日期选择器 -->
+            <div class="date-picker-row">
+                <button class="date-nav" @click="prevDay" title="前一天">◀</button>
+                <div class="date-input-wrapper">
+                    <input type="date" v-model="selectedDate" @change="onDateChange">
+                </div>
+                <button class="date-nav" @click="nextDay" title="后一天">▶</button>
+            </div>
+
+            <!-- 添加待办 -->
+            <div class="add-todo">
+                <input
+                    v-model="newTodo"
+                    @keyup.enter="addTodo"
+                    placeholder="✍️  写下今天要做的事..."
+                    :disabled="loading"
+                >
+                <button class="add-btn" @click="addTodo" :disabled="loading">
+                    {{ loading ? '处理中...' : '＋ 添加' }}
+                </button>
+            </div>
+
+            <!-- 进度条 -->
+            <div class="progress-section" v-if="filteredTodos.length > 0">
+                <div class="progress-bar-wrap">
+                    <div class="progress-bar-fill" :style="{ width: progressPercent + '%' }"></div>
+                </div>
+                <div class="progress-text">
+                    <span>已完成 <span class="highlight">{{ completedCount }}</span> / {{ filteredTodos.length }}</span>
+                    <span>{{ progressLabel }}</span>
+                </div>
+            </div>
+
+            <!-- 待办列表 -->
+            <ul class="todo-list" v-if="filteredTodos.length > 0">
+                <li v-for="todo in filteredTodos" :key="todo.id" :class="{ 'completed-item': todo.completed }">
+                    <input
+                        type="checkbox"
+                        class="custom-checkbox"
+                        :checked="todo.completed"
+                        @change="toggleComplete(todo)"
+                    >
+                    <span
+                        class="todo-text"
+                        :class="{ completed: todo.completed }"
+                        @click="toggleComplete(todo)"
+                    >{{ todo.title }}</span>
+                    <button class="delete-btn" @click="deleteTodo(todo.id)" title="删除">×</button>
+                </li>
+            </ul>
+
+            <!-- 空状态 -->
+            <div class="empty-state" v-else>
+                <span class="empty-icon">{{ emptyIcon }}</span>
+                <p>{{ emptyMessage }}</p>
+            </div>
+
+            <!-- 底部口号 -->
+            <div class="footer-motto" v-if="filteredTodos.length > 0">
+                <span class="motto-text" :class="mottoClass">{{ motto }}</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const { createApp, ref, computed, onMounted } = Vue;
+
+        createApp({
+            setup() {
+                const todos = ref([]);
+                const newTodo = ref('');
+                const selectedDate = ref('');
+                const today = ref('');
+                const loading = ref(false);
+                const errorMsg = ref('');
+
+                const API_URL = '/api/todos';
+
+                // ===== 错误提示 =====
+                let errorTimer = null;
+                const showError = (msg) => {
+                    errorMsg.value = msg;
+                    clearTimeout(errorTimer);
+                    errorTimer = setTimeout(() => { errorMsg.value = ''; }, 3000);
+                };
+
+                // ===== 日期工具 =====
+                const toDateStr = (d) => {
+                    const y = d.getFullYear();
+                    const m = String(d.getMonth() + 1).padStart(2, '0');
+                    const day = String(d.getDate()).padStart(2, '0');
+                    return `${y}-${m}-${day}`;
+                };
+
+                const initDates = () => {
+                    const now = new Date();
+                    today.value = toDateStr(now);
+                    selectedDate.value = today.value;
+                };
+                initDates();
+
+                // 格式化显示
+                const formattedDate = computed(() => {
+                    if (!selectedDate.value) return '';
+                    const d = new Date(selectedDate.value + 'T00:00:00');
+                    const weekNames = ['日', '一', '二', '三', '四', '五', '六'];
+                    const w = weekNames[d.getDay()];
+                    const isToday = selectedDate.value === today.value;
+                    const isTomorrow = selectedDate.value === toDateStr(new Date(Date.now() + 86400000));
+                    const isYesterday = selectedDate.value === toDateStr(new Date(Date.now() - 86400000));
+                    let label = `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日 星期${w}`;
+                    if (isToday) label += ' 今天';
+                    else if (isTomorrow) label += ' 明天';
+                    else if (isYesterday) label += ' 昨天';
+                    return label;
+                });
+
+                // 日期导航
+                const prevDay = () => {
+                    const d = new Date(selectedDate.value + 'T00:00:00');
+                    d.setDate(d.getDate() - 1);
+                    selectedDate.value = toDateStr(d);
+                };
+                const nextDay = () => {
+                    const d = new Date(selectedDate.value + 'T00:00:00');
+                    d.setDate(d.getDate() + 1);
+                    selectedDate.value = toDateStr(d);
+                };
+                const onDateChange = () => { /* v-model 已绑定 */ };
+
+                // ===== 按日期筛选 =====
+                const filteredTodos = computed(() => {
+                    if (!selectedDate.value) return todos.value;
+                    return todos.value.filter(t => {
+                        const todoDate = t.date || today.value;
+                        return todoDate === selectedDate.value;
+                    });
+                });
+
+                const completedCount = computed(() =>
+                    filteredTodos.value.filter(t => t.completed).length
+                );
+                const progressPercent = computed(() => {
+                    if (filteredTodos.value.length === 0) return 0;
+                    return Math.round((completedCount.value / filteredTodos.value.length) * 100);
+                });
+
+                // 进度标签
+                const progressLabel = computed(() => {
+                    const p = progressPercent.value;
+                    if (p === 100) return '🎉 全部完成！';
+                    if (p >= 70) return '🔥 快了，坚持住！';
+                    if (p >= 40) return '💪 进展不错！';
+                    if (p > 0)  return '🚀 好的开始！';
+                    return '📋 准备出发！';
+                });
+
+                // 空状态
+                const emptyIcon = computed(() => {
+                    if (selectedDate.value === today.value) return '🌱';
+                    if (selectedDate.value > today.value) return '📅';
+                    return '📭';
+                });
+                const emptyMessage = computed(() => {
+                    if (selectedDate.value === today.value) return '今天还没有待办\n写下你的目标，开启充实的一天吧！';
+                    if (selectedDate.value > today.value) return '这一天还没有计划\n提前规划让每一天都井井有条～';
+                    return '这一天没有记录的任务';
+                });
+
+                // 底部口号
+                const motto = computed(() => {
+                    const p = progressPercent.value;
+                    if (filteredTodos.value.length === 0) return '';
+                    if (p === 100) return '🏆 太棒了！今天的任务全部完成，你值得为自己骄傲！';
+                    if (p >= 70)  return '✨ 胜利就在眼前，再加把劲！';
+                    if (p >= 40)  return '🌟 每一步都算数，继续前进！';
+                    if (p > 0)   return '🌈 千里之行始于足下，行动起来！';
+                    return '⚡ 列好计划就是成功的一半，开始吧！';
+                });
+                const mottoClass = computed(() => {
+                    const p = progressPercent.value;
+                    if (p === 100) return 'excellent';
+                    if (p >= 50)  return 'good';
+                    return 'encourage';
+                });
+
+                // ===== API 调用 =====
+                const fetchTodos = async () => {
+                    try {
+                        const response = await axios.get(API_URL);
+                        todos.value = response.data;
+                    } catch (error) {
+                        showError('加载失败，请检查网络或后端是否启动');
+                    }
+                };
+
+                const addTodo = async () => {
+                    if (!newTodo.value.trim()) return;
+                    loading.value = true;
+                    try {
+                        const todoData = {
+                            title: newTodo.value,
+                            completed: false,
+                            date: selectedDate.value
+                        };
+                        const response = await axios.post(API_URL, todoData);
+                        todos.value.push(response.data);
+                        newTodo.value = '';
+                    } catch (error) {
+                        showError('添加失败，请稍后重试');
+                    } finally {
+                        loading.value = false;
+                    }
+                };
+
+                const toggleComplete = async (todo) => {
+                    try {
+                        const updated = { ...todo, completed: !todo.completed };
+                        await axios.put(`${API_URL}/${todo.id}`, updated);
+                        todo.completed = !todo.completed;
+                    } catch (error) {
+                        showError('更新失败，请稍后重试');
+                    }
+                };
+
+                const deleteTodo = async (id) => {
+                    try {
+                        await axios.delete(`${API_URL}/${id}`);
+                        todos.value = todos.value.filter(t => t.id !== id);
+                    } catch (error) {
+                        showError('删除失败，请稍后重试');
+                    }
+                };
+
+                onMounted(() => {
+                    fetchTodos();
+                });
+
+                return {
+                    todos, newTodo, selectedDate, today,
+                    loading, errorMsg,
+                    formattedDate,
+                    prevDay, nextDay, onDateChange,
+                    filteredTodos, completedCount, progressPercent, progressLabel,
+                    emptyIcon, emptyMessage,
+                    motto, mottoClass,
+                    addTodo, toggleComplete, deleteTodo
+                };
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>
